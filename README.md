@@ -5,10 +5,10 @@ Durable job-ingestion workflows for Vayuron. One Vercel Cron invocation starts t
 ## Architecture
 
 ```text
-Vercel Cron (weekdays during the 20:00 UTC hour)
+Vercel Cron (weekdays during the 21:00 UTC hour)
   -> GET /api/cron/daily-ingestion
   -> dailyIngestionWorkflow
-       -> run during the 3:00 PM America/Chicago hour
+       -> run during the 4:00 PM America/Chicago hour
        -> Pipeline 1 workflow: Apify LinkedIn + Fantastic Jobs
        -> Pipeline 2 workflow: JSearch + Techmap, one durable step per role
        -> Pipeline 3 workflow: Greenhouse + Lever + Ashby, batched slug steps
@@ -29,10 +29,10 @@ The cron endpoint returns `202` after starting the coordinator. The ingestion wo
 Vercel Cron uses UTC. The single schedule is:
 
 ```text
-0 20 * * 1-5
+0 21 * * 1-5
 ```
 
-At 20:00 UTC it is within the 3 PM CDT hour or the 2 PM CST hour. The endpoint accepts any minute in that hour, which supports Vercel Hobby's hour-level cron accuracy. During standard time the coordinator uses a durable one-hour sleep before starting the pipelines in the 3 PM Chicago hour.
+At 21:00 UTC it is within the 4 PM CDT hour or the 3 PM CST hour. The endpoint accepts any minute in that hour, which supports Vercel Hobby's hour-level cron accuracy. During standard time the coordinator uses a durable one-hour sleep before starting the pipelines in the 4 PM Chicago hour.
 
 ## Collections
 
@@ -84,7 +84,7 @@ Health check:
 GET http://localhost:5050/api/health
 ```
 
-Start a local coordinator run outside the 2–3 PM scheduling window:
+Start a local coordinator run outside the 3–4 PM scheduling window:
 
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" \
