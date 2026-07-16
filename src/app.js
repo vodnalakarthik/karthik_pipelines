@@ -8,20 +8,24 @@ const app = express();
 app.disable('etag');
 app.use(express.json({ limit: '100kb' }));
 
-function chicagoHour(date = new Date()) {
-  const value = new Intl.DateTimeFormat('en-US', {
+function chicagoTime(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Chicago',
     hour: '2-digit',
+    minute: '2-digit',
     hour12: false
-  }).format(date);
-  return Number(value);
+  }).formatToParts(date);
+  return {
+    hour: Number(parts.find((part) => part.type === 'hour')?.value),
+    minute: Number(parts.find((part) => part.type === 'minute')?.value)
+  };
 }
 
-export function delayUntilElevenChicago(date = new Date()) {
-  const hour = chicagoHour(date);
-  if (hour === 11) return 0;
-  if (hour === 10) return 60 * 60;
-  throw new Error(`Cron invoked outside its expected 10–11 AM America/Chicago window (hour=${hour})`);
+export function delayUntilElevenThirtyChicago(date = new Date()) {
+  const { hour, minute } = chicagoTime(date);
+  if (hour === 11 && minute === 30) return 0;
+  if (hour === 10 && minute === 30) return 60 * 60;
+  throw new Error(`Cron invoked outside its expected 10:30–11:30 AM America/Chicago window (time=${hour}:${String(minute).padStart(2, '0')})`);
 }
 
 function isAuthorized(req) {
@@ -40,7 +44,7 @@ app.get('/api/cron/daily-ingestion', async (req, res, next) => {
     if (!isAuthorized(req)) return res.status(401).json({ message: 'Unauthorized' });
 
     const force = req.query.force === 'true' && process.env.NODE_ENV !== 'production';
-    const delaySeconds = force ? 0 : delayUntilElevenChicago();
+    const delaySeconds = force ? 0 : delayUntilElevenThirtyChicago();
     const runId = `daily:${new Date().toISOString().slice(0, 10)}:${randomUUID()}`;
     const run = await start(dailyIngestionWorkflow, [{ runId, delaySeconds }]);
 
