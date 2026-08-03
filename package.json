@@ -1,0 +1,22 @@
+{
+  "name": "karthik-pipelines",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nitro dev --port 5050",
+    "build": "nitro build",
+    "start": "node .output/server/index.mjs",
+    "check": "node --check src/app.js && node --check src/workflows/daily-ingestion.js && node --check src/workflows/pipeline1.js && node --check src/workflows/pipeline2.js && node --check src/workflows/pipeline3.js"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "debug": "^4.4.3",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.2",
+    "mongodb": "^6.3.0",
+    "nitro": "3.0.260610-beta",
+    "node-fetch": "^3.3.2",
+    "workflow": "^4.5.0"
+  }
+}
