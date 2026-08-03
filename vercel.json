@@ -4,7 +4,7 @@
   "crons": [
     {
       "path": "/api/cron/daily-ingestion",
-      "schedule": "30 22 * * 1-5"
+      "schedule": "0 0 * * 2-6"
     }
   ]
 }

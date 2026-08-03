@@ -22,16 +22,11 @@ function chicagoTime(date = new Date()) {
   };
 }
 
-export function delayUntilFiveThirtyChicago(date = new Date()) {
+export function delayUntilSevenChicago(date = new Date()) {
   const { hour, minute } = chicagoTime(date);
+  const minutesUntilSeven = (19 * 60) - (hour * 60 + minute);
 
-  if (hour === 17) return Math.max(0, 30 - minute) * 60;
-  if (hour === 16) return (90 - minute) * 60;
-  if (hour === 18) return 0;
-
-  throw new Error(
-    `Cron invoked outside its expected 4–6 PM America/Chicago window (hour=${hour}, minute=${minute})`
-  );
+  return Math.max(0, minutesUntilSeven) * 60;
 }
 
 function isAuthorized(req) {
@@ -50,7 +45,7 @@ app.get('/api/cron/daily-ingestion', async (req, res, next) => {
     if (!isAuthorized(req)) return res.status(401).json({ message: 'Unauthorized' });
 
     const force = req.query.force === 'true' && process.env.NODE_ENV !== 'production';
-    const delaySeconds = force ? 0 : delayUntilFiveThirtyChicago();
+    const delaySeconds = force ? 0 : delayUntilSevenChicago();
     const runId = `daily:${new Date().toISOString().slice(0, 10)}:${randomUUID()}`;
     const run = await start(dailyIngestionWorkflow, [{ runId, delaySeconds }]);
 
