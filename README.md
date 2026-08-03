@@ -32,7 +32,7 @@ Vercel Cron uses UTC. The single schedule is:
 30 22 * * 1-5
 ```
 
-At 22:30 UTC it is either 5:30 PM CDT or 4:30 PM CST. During standard time the coordinator uses a durable one-hour sleep before starting the pipelines. This keeps execution at 5:30 PM America/Chicago year-round while retaining one cron definition.
+At 22:30 UTC it is either 5:30 PM CDT or 4:30 PM CST. During standard time the coordinator uses a durable one-hour sleep before starting the pipelines. If Vercel Hobby delivers the cron after 5:30 PM, the coordinator starts immediately instead of rejecting the delayed request. This keeps execution at or after 5:30 PM America/Chicago year-round while retaining one cron definition.
 
 ## Collections
 
@@ -84,7 +84,7 @@ Health check:
 GET http://localhost:5050/api/health
 ```
 
-Start a local coordinator run outside the 4–5 PM scheduling window:
+Start a local coordinator run outside the 4–6 PM scheduling window:
 
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" \

@@ -27,9 +27,10 @@ export function delayUntilFiveThirtyChicago(date = new Date()) {
 
   if (hour === 17) return Math.max(0, 30 - minute) * 60;
   if (hour === 16) return (90 - minute) * 60;
+  if (hour === 18) return 0;
 
   throw new Error(
-    `Cron invoked outside its expected 4–5 PM America/Chicago window (hour=${hour}, minute=${minute})`
+    `Cron invoked outside its expected 4–6 PM America/Chicago window (hour=${hour}, minute=${minute})`
   );
 }
 
