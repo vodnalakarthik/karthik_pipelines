@@ -5,7 +5,7 @@
 // Run: node pipeline3.js
 
 import "dotenv/config";
-import { useStorage } from "nitro/storage";
+import masterSlugs from "../data/master-slugs.js";
 
 // ─── CONFIG ───────────────────────────────────────────────
 
@@ -17,9 +17,8 @@ const BATCH_DELAY = 500;
 // ─── LOAD SLUGS ───────────────────────────────────────────
 
 export async function loadSlugs() {
-  const contents = await useStorage("assets:pipeline-data").getItemRaw("master_slugs.txt");
-  if (contents == null) throw new Error("Bundled server asset master_slugs.txt is missing");
-  const lines = String(contents).split("\n");
+  if (!masterSlugs) throw new Error("Bundled master slug data is empty");
+  const lines = masterSlugs.split("\n");
   const slugs = [];
   for (const line of lines) {
     const trimmed = line.trim();
