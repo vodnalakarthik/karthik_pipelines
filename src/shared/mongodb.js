@@ -19,7 +19,7 @@ export async function getDatabase() {
 export async function ensureIndexes(db) {
   await Promise.all([
     db.collection('jobs').createIndex({ external_id: 1, source: 1 }),
-    db.collection('jobs').createIndex({ dedup_key: 1 }, { unique: true }),
+    db.collection('jobs').createIndex({ dedup_key: 1 }),
     db.collection('jobs').createIndex({ posted_at: -1 }),
     db.collection('jobs').createIndex({ ingested_at: -1 }),
     db.collection('jobs').createIndex({ is_active: 1 }),

@@ -120,7 +120,7 @@ Only production deployments receive Vercel Cron invocations.
 
 - The cron endpoint requires `Authorization: Bearer <CRON_SECRET>`.
 - API keys and MongoDB credentials remain server-side.
-- Unique `dedup_key` enforcement prevents duplicate job insertion across sources.
+- Pipeline deduplication checks prevent duplicate job insertion across sources.
 - Pipeline locks protect against duplicate cron delivery and overlapping manual runs.
 - Workflow steps retry transient failures without restarting already completed steps.
 - Each pipeline can fail independently without preventing the other pipelines from starting.
