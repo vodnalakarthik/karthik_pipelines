@@ -22,11 +22,11 @@ function chicagoTime(date = new Date()) {
   };
 }
 
-export function delayUntilThreeOhFiveChicago(date = new Date()) {
+export function delayUntilFourChicago(date = new Date()) {
   const { hour, minute } = chicagoTime(date);
-  const minutesUntilThreeOhFive = (15 * 60 + 5) - (hour * 60 + minute);
+  const minutesUntilFour = (16 * 60) - (hour * 60 + minute);
 
-  return Math.max(0, minutesUntilThreeOhFive) * 60;
+  return Math.max(0, minutesUntilFour) * 60;
 }
 
 function isAuthorized(req) {
@@ -45,7 +45,7 @@ app.get('/api/cron/daily-ingestion', async (req, res, next) => {
     if (!isAuthorized(req)) return res.status(401).json({ message: 'Unauthorized' });
 
     const force = req.query.force === 'true' && process.env.NODE_ENV !== 'production';
-    const delaySeconds = force ? 0 : delayUntilThreeOhFiveChicago();
+    const delaySeconds = force ? 0 : delayUntilFourChicago();
     const runId = `daily:${new Date().toISOString().slice(0, 10)}:${randomUUID()}`;
     const run = await start(dailyIngestionWorkflow, [{ runId, delaySeconds }]);
 
