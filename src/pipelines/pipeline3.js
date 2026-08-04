@@ -5,14 +5,9 @@
 // Run: node pipeline3.js
 
 import "dotenv/config";
-import { readFileSync } from "fs";
-import { dirname, resolve } from "path";
-import { fileURLToPath } from "url";
+import { useStorage } from "nitro/storage";
 
 // ─── CONFIG ───────────────────────────────────────────────
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const SLUGS_FILE = resolve(__dirname, "master_slugs.txt");
 
 // How many companies to process in parallel (be respectful)
 const CONCURRENCY = 5;
@@ -21,8 +16,10 @@ const BATCH_DELAY = 500;
 
 // ─── LOAD SLUGS ───────────────────────────────────────────
 
-export function loadSlugs() {
-  const lines = readFileSync(SLUGS_FILE, "utf8").split("\n");
+export async function loadSlugs() {
+  const contents = await useStorage("assets:pipeline-data").getItemRaw("master_slugs.txt");
+  if (contents == null) throw new Error("Bundled server asset master_slugs.txt is missing");
+  const lines = String(contents).split("\n");
   const slugs = [];
   for (const line of lines) {
     const trimmed = line.trim();
@@ -347,7 +344,7 @@ async function processBatch(slugs, db, stats) {
 
 export async function runPipeline3Batch(db, startIndex = 0, batchSize = 100) {
   const start = Date.now();
-  const allSlugs = loadSlugs();
+  const allSlugs = await loadSlugs();
   const slugs = allSlugs.slice(startIndex, startIndex + batchSize);
 
   console.log(`\n${"═".repeat(56)}`);
@@ -398,6 +395,6 @@ export async function runPipeline3Batch(db, startIndex = 0, batchSize = 100) {
 
 // ─── ENTRY POINT ──────────────────────────────────────────
 
-export function getPipeline3SlugCount() {
-  return loadSlugs().length;
+export async function getPipeline3SlugCount() {
+  return (await loadSlugs()).length;
 }
