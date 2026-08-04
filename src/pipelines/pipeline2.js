@@ -127,8 +127,51 @@ async function isDuplicate(db, job) {
 
 // ─── JSEARCH ──────────────────────────────────────────────
 
+async function fetchWithRetry(url, options, source, attempts = 3) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const response = await fetch(url, options);
+    if (response.ok || (response.status !== 429 && response.status < 500)) return response;
+    if (attempt === attempts) return response;
+    const retryAfter = Number(response.headers.get("retry-after"));
+    const delay = Number.isFinite(retryAfter) && retryAfter > 0
+      ? retryAfter * 1000
+      : attempt * 2000;
+    console.warn(`     ${source} ${response.status}; retrying in ${delay}ms (${attempt}/${attempts})`);
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  }
+}
+
+function parseJSearchPage(payload) {
+  const candidates = [
+    payload?.data,
+    payload?.data?.jobs,
+    payload?.data?.results,
+    payload?.jobs,
+    payload?.results,
+  ];
+  let jobs = candidates.find(Array.isArray);
+  if (!jobs && payload?.data && typeof payload.data === "object") {
+    const values = Object.values(payload.data);
+    if (values.length && values.every((value) => value && typeof value === "object" && value.job_id)) {
+      jobs = values;
+    }
+  }
+  if (!jobs) {
+    throw new Error(`Unexpected JSearch response shape (keys: ${Object.keys(payload || {}).join(", ") || "none"})`);
+  }
+  const cursor = payload?.cursor
+    || payload?.next_cursor
+    || payload?.next_page_cursor
+    || payload?.data?.cursor
+    || payload?.data?.next_cursor
+    || payload?.data?.next_page_cursor
+    || null;
+  return { jobs, cursor };
+}
+
 async function fetchJSearchJobs(query) {
   const allJobs = [];
+  let cursor = null;
 
   for (let page = 1; page <= JSEARCH_MAX_PAGES; page++) {
     const url = new URL("https://jsearch.p.rapidapi.com/search-v2");
@@ -138,17 +181,17 @@ async function fetchJSearchJobs(query) {
     // still guarantees a full 48h window is covered.
     url.searchParams.set("date_posted", "3days");
     url.searchParams.set("num_pages", "1");
-    url.searchParams.set("page", String(page));
+    if (cursor) url.searchParams.set("cursor", cursor);
     url.searchParams.set("employment_types", "FULLTIME");
     url.searchParams.set("country", "us");
 
-    const response = await fetch(url.toString(), {
+    const response = await fetchWithRetry(url.toString(), {
       method: "GET",
       headers: {
         "x-rapidapi-key": JSEARCH_API_KEY,
         "x-rapidapi-host": "jsearch.p.rapidapi.com",
       },
-    });
+    }, "JSearch");
 
     if (!response.ok) {
       const errorBody = await response.text();
@@ -156,7 +199,8 @@ async function fetchJSearchJobs(query) {
     }
 
     const data = await response.json();
-    const pageJobs = data.data || [];
+    const pageResult = parseJSearchPage(data);
+    const pageJobs = pageResult.jobs;
 
     if (pageJobs.length === 0) {
       console.log(`     Stopped at page ${page} — no more results`);
@@ -164,6 +208,10 @@ async function fetchJSearchJobs(query) {
     }
 
     allJobs.push(...pageJobs);
+    cursor = pageResult.cursor;
+
+    // search-v2 uses cursor pagination. No cursor means this is the last page.
+    if (!cursor) break;
 
     if (page < JSEARCH_MAX_PAGES) {
       await new Promise((r) => setTimeout(r, 300));
@@ -269,14 +317,14 @@ async function fetchTechmapPages(titleKeyword) {
     url.searchParams.set("page", String(page));
     url.searchParams.set("format", "json");
 
-    const response = await fetch(url.toString(), {
+    const response = await fetchWithRetry(url.toString(), {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
         "x-rapidapi-host": "daily-international-job-postings.p.rapidapi.com",
         "x-rapidapi-key": TECHMAP_API_KEY,
       },
-    });
+    }, "Techmap");
 
     if (!response.ok) {
       const err = await response.text();
