@@ -9,7 +9,7 @@ Vercel Cron (Monday–Friday at 21:00 UTC)
   -> GET /api/cron/daily-ingestion
   -> dailyIngestionWorkflow
        -> wait until 4:00 PM America/Chicago when necessary
-       -> Pipeline 1 workflow: Apify LinkedIn + Fantastic Jobs
+       -> Pipeline 1 workflow: Apify LinkedIn
        -> Pipeline 2 workflow: JSearch + Techmap, one durable step per role
        -> Pipeline 3 workflow: Greenhouse + Lever + Ashby, batched slug steps
   -> MongoDB Atlas: vayuron.jobs
@@ -56,7 +56,6 @@ Required:
 ```text
 MONGO_URI
 APIFY_API_KEY
-FANTASTIC_JOBS_API_KEY
 JSEARCH_API_KEY
 TECHMAP_API_KEY
 CRON_SECRET

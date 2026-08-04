@@ -1,6 +1,6 @@
 // pipeline1.js
 // Vayuron Job Ingestion — Pipeline 1
-// Sources: Apify LinkedIn + Fantastic Jobs → MongoDB
+// Source: Apify LinkedIn → MongoDB
 // Run: node pipeline1.js
 
 import "dotenv/config";
@@ -8,10 +8,9 @@ import fetch from "node-fetch";
 
 // ─── CONFIG ───────────────────────────────────────────────
 
-const APIFY_API_KEY      = process.env.APIFY_API_KEY;
-const FANTASTIC_API_KEY  = process.env.FANTASTIC_JOBS_API_KEY;
+const APIFY_API_KEY = process.env.APIFY_API_KEY;
 
-// ─── QUERIES (7 roles — same across both sources) ─────────
+// ─── QUERIES (7 roles) ────────────────────────────────────
 
 const LINKEDIN_COUNT_PER_ROLE = 142;  // 142 × 7 roles = ~1,000 total/day = ~$1.00/day
 
@@ -24,27 +23,6 @@ const LINKEDIN_URLS = [
   "https://www.linkedin.com/jobs/search/?keywords=AI+engineer&location=United+States&f_TPR=r172800&f_JT=F",
   "https://www.linkedin.com/jobs/search/?keywords=devops+engineer&location=United+States&f_TPR=r172800&f_JT=F",
 ];
-
-const FANTASTIC_ROLES = [
-  "Data Engineer",
-  "Data Analyst",
-  "Data Scientist",
-  "AI Engineer",
-  "Machine Learning Engineer",
-  "Software Engineer",
-  "Devops Engineer",
-];
-
-const FANTASTIC_TIME_FRAME = "24h";
-// NOTE: Fantastic.jobs' time_frame only supports 1h/24h/7d/6m — no 48h option.
-// Kept at 24h to conserve the limited monthly job quota (user decision — see chat).
-// This means Fantastic has a smaller lookback window than the other 3 sources,
-// which are all set to a true 48h window.
-const FANTASTIC_LIMIT = 124; // max safe: 20,000 jobs ÷ 23 days ÷ 7 roles = 124
-const FANTASTIC_LOCATION = "united states";  // Fantastic API location filter
-// NOTE: Fantastic.jobs' active-ats endpoint does not have a clearly documented
-// employment_type filter param. Full-time filtering for this source currently
-// relies on quality/description checks only — flagging as a known gap.
 
 // ─── STAFFING AGENCIES ────────────────────────────────────
 
@@ -275,144 +253,27 @@ async function runApify(db) {
   return stats;
 }
 
-// ─── FANTASTIC JOBS ───────────────────────────────────────
-
-async function fetchFantasticJobs(role) {
-  const url = `https://data.fantastic.jobs/v1/active-ats?time_frame=${FANTASTIC_TIME_FRAME}&limit=${FANTASTIC_LIMIT}&title=${encodeURIComponent(role)}&location=${encodeURIComponent(FANTASTIC_LOCATION)}&description_format=text`;
-
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${FANTASTIC_API_KEY}` },
-  });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Fantastic ${res.status} for "${role}": ${errText}`);
-  }
-
-  const data = await res.json();
-  return Array.isArray(data) ? data : (data && data.jobs) || [];
-}
-
-function normalizeFantasticJob(raw, role) {
-  const place = raw.locations?.[0]?.address || {};
-  const city = place.addressLocality || "";
-  const state = place.addressRegion || "";
-  const country = place.addressCountry || "";
-  const jobPublisher = raw.job_publisher || raw.publisher || raw.source || raw.portal || raw.provider || "fantastic-jobs";
-
-  return {
-    external_id: String(raw.id || raw.url || ""),
-    source: "fantastic-jobs",
-    search_query: role,
-    company_name: raw.organization || "Unknown",
-    company_website: raw.organization_url || null,
-    title: raw.title || "",
-    description: raw.description || raw.descriptionText || raw.description_text || raw.body || raw.text || "",
-    employment_type: "FULLTIME",
-    apply_url: raw.url || raw.organization_url || "",
-    is_direct_apply: true, // Fantastic sources directly from ATS/career sites
-    direct_apply_url: raw.url || null,
-    publisher_url: null,
-    job_publisher: jobPublisher,
-    location: [city, state].filter(Boolean).join(", "),
-    job_city: city,
-    job_state: state,
-    job_country: country,
-    is_remote: (raw.title || "").toLowerCase().includes("remote") ||
-               [city, state].join(" ").toLowerCase().includes("remote"),
-    // Only accept explicit US signals — reject everything else
-    is_usa: (() => {
-      if (country === "US" || country === "USA") return true;
-      if (country && country !== "US" && country !== "USA") return false;
-      // No country field — check location string for US signals
-      const loc = [city, state].join(" ").toLowerCase();
-      if (loc.includes("united states") || loc.includes(" usa")) return true;
-      // US state abbreviations
-      const usStates = ["al","ak","az","ar","ca","co","ct","de","fl","ga",
-        "hi","id","il","in","ia","ks","ky","la","me","md","ma","mi","mn",
-        "ms","mo","mt","ne","nv","nh","nj","nm","ny","nc","nd","oh","ok",
-        "or","pa","ri","sc","sd","tn","tx","ut","vt","va","wa","wv","wi","wy"];
-      if (usStates.includes(state.toLowerCase())) return true;
-      return false;
-    })(),
-    salary_min: null,
-    salary_max: null,
-    salary_currency: "USD",
-    required_skills: [],
-    dedup_key: buildDedupKey(raw.organization, raw.title, raw.date_posted),
-    posted_at: raw.date_posted ? new Date(raw.date_posted) : new Date(),
-    ingested_at: new Date(),
-    is_active: true,
-  };
-}
-
-async function runFantastic(db) {
-  console.log("\n━━━ Fantastic Jobs ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  const stats = { fetched: 0, saved: 0, filtered: 0, deduped: 0, not_us: 0, errors: [] };
-
-  for (const role of FANTASTIC_ROLES) {
-    console.log(`\n  🔍 "${role}"`);
-    try {
-      const rawJobs = await fetchFantasticJobs(role);
-      stats.fetched += rawJobs.length;
-      console.log(`     Fetched : ${rawJobs.length} jobs`);
-
-      for (const raw of rawJobs) {
-        const job = normalizeFantasticJob(raw, role);
-        // US filter — reject jobs from India and other non-US locations
-        if (!job.is_usa) { stats.not_us++; continue; }
-        if (isStaffingAgency(job.company_name)) { stats.filtered++; continue; }
-        if (isBlockedJobPublisher(job.job_publisher)) { stats.filtered++; continue; }
-        // Fantastic: require title and apply_url only
-        if (!job.title || !job.apply_url) { stats.filtered++; continue; }
-        if (!isUSJob(job)) { stats.not_us++; continue; }
-        if (await isDuplicate(db, job)) { stats.deduped++; continue; }
-        try {
-          await db.collection("jobs").insertOne(job);
-          stats.saved++;
-          console.log(`     ➕ ${job.title} @ ${job.company_name} — ${job.job_city}, ${job.job_state}`);
-        } catch (e) {
-          if (e.code === 11000) { stats.deduped++; }
-          else { stats.errors.push(e.message); }
-        }
-      }
-
-      await new Promise((r) => setTimeout(r, 500));
-    } catch (err) {
-      console.error(`     ❌ ${err.message}`);
-      stats.errors.push(err.message);
-    }
-  }
-
-  console.log(`\n  Fantastic → Fetched: ${stats.fetched} | Saved: ${stats.saved} | Not US: ${stats.not_us} | Filtered: ${stats.filtered} | Deduped: ${stats.deduped}`);
-  return stats;
-}
-
 // ─── MAIN PIPELINE ────────────────────────────────────────
 
 export async function runPipeline1(db) {
   if (!APIFY_API_KEY) throw new Error("APIFY_API_KEY missing");
-  if (!FANTASTIC_API_KEY) throw new Error("FANTASTIC_JOBS_API_KEY missing");
   const start = Date.now();
   console.log(`\n${"═".repeat(52)}`);
   console.log(`  VAYURON PIPELINE 1 — ${new Date().toISOString()}`);
-  console.log(`  Sources: Apify LinkedIn + Fantastic Jobs`);
+  console.log(`  Source: Apify LinkedIn`);
   console.log(`${"═".repeat(52)}`);
 
-  const apifyStats     = await runApify(db);
-  const fantasticStats = await runFantastic(db);
+  const apifyStats = await runApify(db);
 
-  const totalSaved    = apifyStats.saved   + fantasticStats.saved;
-  const totalDeduped  = apifyStats.deduped + fantasticStats.deduped;
-  const totalFiltered = apifyStats.filtered + fantasticStats.filtered;
-  const totalNotUS    = apifyStats.not_us + fantasticStats.not_us;
+  const totalSaved = apifyStats.saved;
+  const totalDeduped = apifyStats.deduped;
+  const totalFiltered = apifyStats.filtered;
+  const totalNotUS = apifyStats.not_us;
   const duration = Math.round((Date.now() - start) / 1000);
-  const hasErrors = apifyStats.errors.length + fantasticStats.errors.length > 0;
+  const hasErrors = apifyStats.errors.length > 0;
 
   console.log(`\n${"═".repeat(52)}`);
   console.log(`  LinkedIn saved   : ${apifyStats.saved}`);
-  console.log(`  Fantastic saved  : ${fantasticStats.saved}`);
-  console.log(`  ────────────────────────────────────`);
   console.log(`  Total new jobs   : ${totalSaved}`);
   console.log(`  Deduped          : ${totalDeduped}`);
   console.log(`  Not US           : ${totalNotUS}`);
@@ -425,7 +286,6 @@ export async function runPipeline1(db) {
     pipeline: "pipeline1",
     run_at: new Date(),
     apify_linkedin: apifyStats,
-    fantastic_jobs: fantasticStats,
     total_new_jobs: totalSaved,
     total_deduped: totalDeduped,
     total_not_us: totalNotUS,

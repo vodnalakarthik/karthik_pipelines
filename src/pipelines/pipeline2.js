@@ -131,7 +131,7 @@ async function fetchJSearchJobs(query) {
   const allJobs = [];
 
   for (let page = 1; page <= JSEARCH_MAX_PAGES; page++) {
-    const url = new URL("https://jsearch.p.rapidapi.com/search");
+    const url = new URL("https://jsearch.p.rapidapi.com/search-v2");
     url.searchParams.set("query", query);
     // JSearch's date_posted enum doesn't have an exact "48h" option
     // (only today/3days/week/month) — "3days" is the closest fit that
@@ -150,7 +150,10 @@ async function fetchJSearchJobs(query) {
       },
     });
 
-    if (!response.ok) throw new Error(`JSearch ${response.status} for: "${query}" page ${page}`);
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`JSearch ${response.status} for: "${query}" page ${page}: ${errorBody}`);
+    }
 
     const data = await response.json();
     const pageJobs = data.data || [];
