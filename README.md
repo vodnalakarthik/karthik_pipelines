@@ -5,10 +5,10 @@ Durable job-ingestion workflows for Vayuron. One Vercel Cron invocation starts t
 ## Architecture
 
 ```text
-Vercel Cron (Monday–Friday at 16:00 UTC)
+Vercel Cron (Monday–Friday at 20:05 UTC)
   -> GET /api/cron/daily-ingestion
   -> dailyIngestionWorkflow
-       -> wait until 11:00 AM America/Chicago when necessary
+       -> wait until 3:05 PM America/Chicago when necessary
        -> Pipeline 1 workflow: Apify LinkedIn + Fantastic Jobs
        -> Pipeline 2 workflow: JSearch + Techmap, one durable step per role
        -> Pipeline 3 workflow: Greenhouse + Lever + Ashby, batched slug steps
@@ -29,10 +29,10 @@ The cron endpoint returns `202` after starting the coordinator. The ingestion wo
 Vercel Cron uses UTC. The single schedule is:
 
 ```text
-0 16 * * 1-5
+5 20 * * 1-5
 ```
 
-At 16:00 UTC Monday–Friday it is either 11:00 AM CDT or 10:00 AM CST. During standard time the coordinator waits until 11:00 AM. Early Hobby delivery also waits until 11:00 AM, while late delivery starts immediately and is never rejected because of its arrival time. This keeps weekday execution at or after 11:00 AM America/Chicago year-round with one cron definition.
+At 20:05 UTC Monday–Friday it is either 3:05 PM CDT or 2:05 PM CST. During standard time the coordinator waits until 3:05 PM. Early Hobby delivery also waits until 3:05 PM, while late delivery starts immediately and is never rejected because of its arrival time. This keeps weekday execution at or after 3:05 PM America/Chicago year-round with one cron definition.
 
 ## Collections
 
@@ -84,7 +84,7 @@ Health check:
 GET http://localhost:5050/api/health
 ```
 
-Start a local coordinator run without waiting for 11:00 AM:
+Start a local coordinator run without waiting for 3:05 PM:
 
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" \
